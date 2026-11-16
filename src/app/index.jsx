@@ -1,69 +1,108 @@
-import MapView, { Marker } from 'react-native-maps';
-import { Image, StyleSheet, Text, View, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { colours } from '@/constants/theme';
 import AppButton from '@/components/app-button';
+import { colours } from '@/constants/theme';
 import { places } from '@/data/places';
-import { useState, useRef } from 'react';
+import { db } from '@/lib/firebase';
 import * as Location from 'expo-location';
-
+import { useRouter } from 'expo-router';
+import { collection, getDocsFromServer, query, where } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
+import { Image, Modal, StyleSheet, Text, View } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const [selectedPlace, setSelectedPlace] = useState(null);
   const mapRef = useRef(null);
+  const [selectedPlace, setSelectedPlace] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState('');
   const [currentLocation, setCurrentLocation] = useState(null);
+  const [reviewResult, setReviewResult] = useState(null);
+  const placeId = selectedPlace?.id;
 
+  useEffect(() => {
+    if (!placeId) return;
 
-  async function findMyLocation() {
-  if (isLocating) return;
+    let active = true;
 
-  setIsLocating(true);
-  setLocationMessage('');
+    async function loadReviews() {
+      try {
+        const reviewsQuery = query(
+          collection(db, 'reviews'),
+          where('placeId', '==', placeId)
+        );
+        const snapshot = await getDocsFromServer(reviewsQuery);
 
-  try {
-    const permission = await Location.requestForegroundPermissionsAsync();
-
-    if (!permission.granted) {
-      setLocationMessage(
-        'Location access is off. You can still browse Dundee and tap any pin.'
-      );
-      return;
+        if (active) {
+          setReviewResult({
+            placeId,
+            reviews: snapshot.docs.map((doc) => ({
+              ...doc.data(),
+              id: doc.id,
+            })),
+          });
+        }
+      } catch (error) {
+        if (active) {
+          console.warn('Could not load reviews:', error.message);
+          setReviewResult({ placeId, error: true });
+        }
+      }
     }
 
-    const { coords } = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
+    loadReviews();
 
-    {/*Update the current location state with the user's coordinates. This will be used to center the map on the user's location.*/}
-    setCurrentLocation({
-  latitude: coords.latitude,
-  longitude: coords.longitude,
-  });
+    return () => {
+      active = false;
+    };
+  }, [placeId]);
 
-    mapRef.current?.animateToRegion({
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      latitudeDelta: 0.025,
-      longitudeDelta: 0.025,
-    });
-  } catch {
-    setLocationMessage('We Could not find your location. You can still browse the map.');
-  } finally {
-    setIsLocating(false);
+  async function findMyLocation() {
+    if (isLocating) return;
+
+    setIsLocating(true);
+    setLocationMessage('');
+
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+
+      if (!permission.granted) {
+        setLocationMessage(
+          'Location access is off. You can still browse Dundee and tap any pin.'
+        );
+        return;
+      }
+
+      const { coords } = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const coordinate = {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      };
+
+      setCurrentLocation(coordinate);
+      mapRef.current?.animateToRegion({
+        ...coordinate,
+        latitudeDelta: 0.025,
+        longitudeDelta: 0.025,
+      });
+    } catch {
+      setLocationMessage(
+        'Couldn’t find your location. You can still browse the map.'
+      );
+    } finally {
+      setIsLocating(false);
+    }
   }
-}
 
   return (
-    // SafeAreaView ensures the content sits within the device's safe area, avoiding notches and screen cutouts.
     <SafeAreaView style={styles.screen}>
       <View style={styles.header}>
         <Image
           source={require('../../assets/images/Securie-logo.png')}
-          style={{ width: 64, height: 64 }}
+          style={styles.logo}
           resizeMode="contain"
           accessible={false}
         />
@@ -80,15 +119,16 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Explore the map</Text>
 
-          {/* The map gives users a quick view of nearby places and lets them tap a pin for more info. */}
-          <MapView ref={mapRef}
-            style={{ width: '100%', height: 280 }}
+          <MapView
+            ref={mapRef}
+            style={styles.map}
             initialRegion={{
               latitude: 56.462,
               longitude: -2.9707,
               latitudeDelta: 0.025,
               longitudeDelta: 0.025,
-            }}>
+            }}
+          >
             {places.map((place) => (
               <Marker
                 key={place.id}
@@ -97,50 +137,74 @@ export default function HomeScreen() {
                   longitude: place.longitude,
                 }}
                 title={place.name}
-                onPress={() => setSelectedPlace(place)}
+                onPress={() => {
+                  setReviewResult(null);
+                  setSelectedPlace(place);
+                }}
               />
             ))}
 
             {currentLocation && (
               <Marker
                 coordinate={currentLocation}
-                 pinColor="#adc7d5"
-                 title="You are here"
+                pinColor="#adc7d5"
+                title="You are here"
                 description="Last location found"
-               />
+              />
             )}
           </MapView>
-           
-          {/* this button allows users to share live locations */}
+
           <AppButton
-             label={isLocating ? 'Finding your location…' : 'Find my location'}
+            label={isLocating ? 'Finding your location…' : 'Find my location'}
             onPress={findMyLocation}
-         />
+          />
 
-        {locationMessage ? <Text>{locationMessage}</Text> : null}
-         </View>
-
-          <View style={styles.bottomButton}>
-          <AppButton label="Quick Help" onPress={() => router.navigate('/help')} />
-         </View>
+          {locationMessage ? <Text>{locationMessage}</Text> : null}
         </View>
 
-      {/* This modal shows a quick location detail when the user taps a map marker. */}
+        <View style={styles.bottomButton}>
+          <AppButton
+            label="Quick Help"
+            onPress={() => router.navigate('/help')}
+          />
+        </View>
+      </View>
+
       <Modal
         visible={selectedPlace !== null}
-        animationType="slide"
-        onRequestClose={() => setSelectedPlace(null)}>
-        <SafeAreaView style={styles.screen}>
-          <View style={styles.content}>
-            <Text accessibilityRole="header" style={styles.heading}>
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedPlace(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text accessibilityRole="header" style={styles.cardTitle}>
               {selectedPlace?.name}
             </Text>
-            <Text style={styles.description}>Sample location</Text>
-            <Text style={styles.description}>No reviews yet</Text>
 
-            <AppButton label="Back to map" onPress={() => setSelectedPlace(null)} />
+            {!reviewResult || reviewResult.placeId !== placeId ? (
+              <Text>Loading reviews…</Text>
+            ) : reviewResult.error ? (
+              <Text>
+                Couldn’t load reviews. Go back and reopen this place to try again.
+              </Text>
+            ) : reviewResult.reviews.length === 0 ? (
+              <Text>No reviews yet</Text>
+            ) : (
+              reviewResult.reviews.map((review) => (
+                <View key={review.id}>
+                  <Text>{review.rating} out of 5 stars</Text>
+                  <Text>{review.comment}</Text>
+                </View>
+              ))
+            )}
+
+            <AppButton
+              label="Back to map"
+              onPress={() => setSelectedPlace(null)}
+            />
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -155,6 +219,10 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: colours.header,
     alignItems: 'center',
+  },
+  logo: {
+    width: 64,
+    height: 64,
   },
   brand: {
     fontSize: 36,
@@ -195,9 +263,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colours.accent,
   },
-  cardText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colours.accent,
+  map: {
+    width: '100%',
+    height: 280,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  modalCard: {
+    padding: 20,
+    borderRadius: 16,
+    gap: 12,
+    backgroundColor: colours.white,
   },
 });
