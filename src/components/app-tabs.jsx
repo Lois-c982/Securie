@@ -1,17 +1,16 @@
+import { colours } from '@/constants/theme';
 import { NativeTabs } from 'expo-router/native-tabs';
-import { useColorScheme } from 'react-native';
-
-import { Colors } from '@/constants/theme';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
-
+  // The selected tab uses the bright pink from the wireframe navigation.
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}
+      backgroundColor={colours.white}
+      indicatorColor={colours.brandPink}
+      labelStyle={{
+        default: { color: colours.textSecondary },
+        selected: { color: colours.buttonText },
+      }}
     >
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Map</NativeTabs.Trigger.Label>
