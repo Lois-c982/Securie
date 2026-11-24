@@ -4,7 +4,7 @@ Securie is a Dundee-focused women’s safety mobile app built with React Native 
 
 ## Requirements
 
-- Node.js [insert the version used for testing].
+- Node.js v25.8.1.
 - npm.
 - Expo Go compatible with the project’s Expo SDK, or a compatible development build.
 - A physical phone for testing SMS.
@@ -17,8 +17,8 @@ Tested on a iphone 15 and 16
 Clone the repository:
 
 ```bash
-git clone [repository URL]
-cd [repository folder]
+git clone [https://github.com/Lois-c982/Securie]
+cd securie
 ```
 
 Install the dependencies:
@@ -39,21 +39,9 @@ Open the project in a compatible Expo Go app or development build using the inst
 ## Firebase Setup
 
 Firebase configuration is located in:
-
-```text
 src/lib/firebase.js
-```
 
-For assessment, [explain whether the submitted configuration connects to your maintained project or whether the assessor must configure their own].
-
-To use a separate Firebase project:
-
-1. Create a Firebase project.
-2. Enable Email/Password authentication.
-3. Create a Cloud Firestore database.
-4. Update the Firebase configuration in `src/lib/firebase.js`.
-5. Publish the rules supplied in `firestore.rules`.
-
+The app is configured to connect to my existing Firebase project. You can register an account through the app to test authenticated features. An internet connection is required.
 
 
 ## Permissions
